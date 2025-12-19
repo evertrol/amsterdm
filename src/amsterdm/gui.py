@@ -9,6 +9,7 @@ import param
 import xarray as xr
 
 from .candidate import openfile
+from .utils import symlog10
 
 
 hv.extension("bokeh")
@@ -41,6 +42,9 @@ class CandidatePlot(param.Parameterized):
     colormap = param.Selector(objects=COLORMAPS, default="viridis", label="Colormap")
     cmin = param.Number(default=0.1, bounds=(0.0, 1.0), label="Lower fraction")
     cmax = param.Number(default=0.9, bounds=(0.0, 1.0), label="Upper fraction")
+    logimage = param.Boolean(default=False, label="Logarithmic color scale")
+    loglc = param.Boolean(default=False, label="Logarithmic light curve y-axis")
+    trunclc = param.Number(default=0, label="Lower y limit")
     datarange = param.Range((0.3, 0.6), bounds=(0, 1))
     badchanlist = param.String(default="", label="Bad channels")
     # Simple flag for cases where the plot method needs to be explicitly triggered
@@ -63,7 +67,16 @@ class CandidatePlot(param.Parameterized):
         self._init_data()
 
         self.param.watch(
-            self._update_data, ["dm", "datarange", "badchanlist", "update_data"]
+            self._update_data,
+            [
+                "dm",
+                "datarange",
+                "badchanlist",
+                "update_data",
+                "logimage",
+                "loglc",
+                "trunclc",
+            ],
         )
         self.param.watch(self._update_dm_slider, ["dm_zoom"])
 
@@ -125,6 +138,14 @@ class CandidatePlot(param.Parameterized):
             self.stokesI, np.nan
         )  # Replace the (temporary) mask with NaNs for plotting purposes and `nanpercentile`
 
+        self.lc = np.nansum(self.stokesI, axis=1)
+        if self.loglc:
+            self.lc = symlog10(self.lc)
+        self.lc[self.lc < self.trunclc] = np.nan
+
+        if self.logimage:
+            self.stokesI = symlog10(self.stokesI)
+
     def _update_data(self, event):
         self.update_data = (
             False  # change back, so assignment in _on_tap triggers this method
@@ -141,8 +162,7 @@ class CandidatePlot(param.Parameterized):
 
     @param.depends("update_plot")
     def plot_lc(self, x_range=None):
-        lc = np.nansum(self.stokesI, axis=1)
-        lcplot = hv.Curve((self.dt, lc), "t", "I").opts(
+        lcplot = hv.Curve((self.dt, self.lc), "t", "I").opts(
             width=self.width, framewise=True
         )
         if x_range:
@@ -233,14 +253,28 @@ class CandidatePlot(param.Parameterized):
 
         lcplot = hv.DynamicMap(self.plot_lc, streams=[self.range_stream])
         plots = pn.Column(lcplot, pn.Row(bkgplots, image_plot))
+        trunclc = pn.Param(
+            self.param.trunclc,
+            widgets={"trunclc": {"type": pn.widgets.FloatInput, "width": 100}},
+        )[0]
+        lcsettings = pn.Card(
+            pn.Row(
+                self.param.loglc,
+                trunclc,
+            ),
+            title="Light curve settings",
+            collapsed=True,
+        )
         colorsettings = pn.Card(
             pn.Column(
+                self.param.logimage,
                 self.param.colormap,
                 pn.Row(cmin, cmax),
             ),
             title="Colormap settings",
             collapsed=True,
         )
+
         badchannels = pn.Card(
             badchanlist,
             title="Bad channels",
@@ -260,6 +294,7 @@ class CandidatePlot(param.Parameterized):
                 plots,
             ),
             pn.Column(
+                lcsettings,
                 colorsettings,
                 badchannels,
                 dmsettings,
