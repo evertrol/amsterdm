@@ -33,7 +33,7 @@ class CandidatePlot(param.Parameterized):
     colormap = param.Selector(objects=COLORMAPS, default="viridis", label="Colormap")
     cmin = param.Number(default=0.1, bounds=(0.0, 1.0), label="Lower fraction")
     cmax = param.Number(default=0.9, bounds=(0.0, 1.0), label="Upper fraction")
-    objrange = param.Range((0.3, 0.6), bounds=(0, 1))
+    datarange = param.Range((0.3, 0.6), bounds=(0, 1))
     badchanlist = param.String(default="", label="Bad channels")
     # Simple flag for cases where the plot method needs to be explicitly triggered
     update_data = param.Boolean(default=False)
@@ -51,7 +51,7 @@ class CandidatePlot(param.Parameterized):
         self._init_data()
 
         self.param.watch(
-            self._update_data, ["dm", "objrange", "badchanlist", "update_data"]
+            self._update_data, ["dm", "datarange", "badchanlist", "update_data"]
         )
 
     def _on_tap(self, event):
@@ -83,7 +83,7 @@ class CandidatePlot(param.Parameterized):
         self.stokesI, self.bkg = self.candidate.calc_intensity(
             {128 - value for value in self.badchannels},
             dm,
-            self.objrange,
+            self.datarange,
             ...,
             bkg_extra=True,
         )
@@ -176,11 +176,11 @@ class CandidatePlot(param.Parameterized):
                 }
             },
         )[0]
-        objrange = pn.Param(
-            self.param.objrange, widgets={"objrange": pn.widgets.RangeSlider}
+        datarange = pn.Param(
+            self.param.datarange, widgets={"datarange": pn.widgets.RangeSlider}
         )[0]
-        objrange.width = self.width
-        objrange.step = 0.01
+        datarange.width = self.width
+        datarange.step = 0.01
 
         bkgplots = pn.Card(
             self.plot_bkg,
@@ -191,20 +191,42 @@ class CandidatePlot(param.Parameterized):
         )
         dynspec = hv.DynamicMap(self.plot_dynspec, streams=[self.range_stream])
         self.tap.source = dynspec
-        image_plot = pn.Column(dynspec, objrange)
+        image_plot = pn.Column(dynspec, datarange)
 
         lcplot = hv.DynamicMap(self.plot_lc, streams=[self.range_stream])
         plots = pn.Column(lcplot, pn.Row(bkgplots, image_plot))
-
+        colorsettings = pn.Card(
+            pn.Column(
+                self.param.colormap,
+                pn.Row(cmin, cmax),
+            ),
+            title="Colormap settings",
+            collapsed=True,
+        )
+        badchannels = pn.Card(
+            badchanlist,
+            title="Bad channels",
+            collapsed=True,
+        )
+        dmsettings = pn.Card(
+            pn.Row(
+                slider,
+                input_widget,
+            ),
+            title="Dispersion measure",
+            collapsed=False,
+        )
         layout = pn.Row(
             pn.Column(
                 plots,
             ),
             pn.Column(
-                pn.Row(slider, input_widget),
-                self.param.colormap,
-                pn.Row(cmin, cmax),
-                badchanlist,
+                colorsettings,
+                # self.param.colormap,
+                # pn.Row(cmin, cmax),
+                badchannels,
+                dmsettings,
+                # pn.Row(slider, input_widget),
             ),
         )
         return layout
