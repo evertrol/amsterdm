@@ -46,6 +46,7 @@ class CandidatePlot(param.Parameterized):
         self.tap.param.watch(self._on_tap, ["y"])
         self.invert = invert
         self.width = width
+        self.range_stream = hv.streams.RangeX()
 
         self._init_data()
 
@@ -106,14 +107,18 @@ class CandidatePlot(param.Parameterized):
         self.update_plot += 1
 
     @param.depends("update_plot")
-    def plot_lc(self):
+    def plot_lc(self, x_range=None):
         lc = np.nansum(self.stokesI, axis=1)
-        lcplot = hv.Curve((self.dt, lc), "t", "I").opts(width=self.width)
+        lcplot = hv.Curve((self.dt, lc), "t", "I").opts(
+            width=self.width, framewise=True
+        )
+        if x_range:
+            lcplot = lcplot.opts(xlim=x_range)
 
         return lcplot
 
     @param.depends("update_plot", "cmin", "cmax", "colormap")
-    def plot_image(self):
+    def plot_dynspec(self, x_range=None):
         ds = xr.Dataset(
             {"data": (["t", "channel"], self.stokesI)},
             coords={"channel": self.channels, "t": self.dt},
@@ -127,6 +132,7 @@ class CandidatePlot(param.Parameterized):
                 clim=clim,
                 cmap=self.colormap,
                 rasterize=True,
+                dynamic=False,
             )
             .redim(x="t")
             .opts(
@@ -137,7 +143,11 @@ class CandidatePlot(param.Parameterized):
                 colorbar_opts={"formatter": PrintfTickFormatter(format="%.2f")},
             )
         )
-        self.tap.source = dynspec
+        if x_range:
+            dynspec = dynspec.opts(
+                xlim=x_range,
+                apply_ranges=False,
+            )
 
         return dynspec
 
@@ -179,8 +189,12 @@ class CandidatePlot(param.Parameterized):
             ),
             collapsed=True,
         )
-        image_plot = pn.Column(self.plot_image, objrange)
-        plots = pn.Column(self.plot_lc, pn.Row(bkgplots, image_plot))
+        dynspec = hv.DynamicMap(self.plot_dynspec, streams=[self.range_stream])
+        self.tap.source = dynspec
+        image_plot = pn.Column(dynspec, objrange)
+
+        lcplot = hv.DynamicMap(self.plot_lc, streams=[self.range_stream])
+        plots = pn.Column(lcplot, pn.Row(bkgplots, image_plot))
 
         layout = pn.Row(
             pn.Column(
