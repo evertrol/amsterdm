@@ -25,11 +25,19 @@ COLORMAPS = [
     "fire",
     "gray",
 ]
+DM_ZOOM_LEVELS = {
+    "Zoom 1x": {"zoom": 1, "step": 5},
+    "Zoom 10x": {"zoom": 10, "step": 1},
+    "Zoom 100x": {"zoom": 100, "step": 0.1},
+    "Zoom 1000x": {"zoom": 1000, "step": 0.01},
+}
 
 
 class CandidatePlot(param.Parameterized):
     dm = param.Number(default=0.0, bounds=(0.0, 2000.0), step=0.1, label="DM")
-    # image_y = param.Number(default=1, allow_None=True)
+    dm_zoom = param.Selector(
+        objects=DM_ZOOM_LEVELS.keys(), label="DM slider zoom factor"
+    )
     colormap = param.Selector(objects=COLORMAPS, default="viridis", label="Colormap")
     cmin = param.Number(default=0.1, bounds=(0.0, 1.0), label="Lower fraction")
     cmax = param.Number(default=0.9, bounds=(0.0, 1.0), label="Upper fraction")
@@ -48,11 +56,16 @@ class CandidatePlot(param.Parameterized):
         self.width = width
         self.range_stream = hv.streams.RangeX()
 
+        self.dm_slider = pn.Param(
+            self.param.dm, widgets={"dm": pn.widgets.FloatSlider}
+        )[0]
+
         self._init_data()
 
         self.param.watch(
             self._update_data, ["dm", "datarange", "badchanlist", "update_data"]
         )
+        self.param.watch(self._update_dm_slider, ["dm_zoom"])
 
     def _on_tap(self, event):
         # Simply read the current values from the tap stream
@@ -64,6 +77,26 @@ class CandidatePlot(param.Parameterized):
         self.badchanlist = ",".join(str(value) for value in sorted(self.badchannels))
 
         self.update_data = True
+
+    def _update_dm_slider(self, event):
+        """Update the DM slider range based on the DM slider zoom selector"""
+        config = DM_ZOOM_LEVELS[event.new]
+        zoom = config["zoom"]
+        step = config["step"]
+        value = self.dm
+        if zoom == 1:
+            start = config["start"]
+            end = config["end"]
+            width = end - start
+        else:
+            width = 1000 / config["zoom"]
+            start = max(0, self.dm - 2 * width)  # ensure no negative values
+            end = self.dm + 2 * width
+        value = self.dm // step * step
+        self.dm_slider.start = start
+        self.dm_slider.end = end
+        self.dm_slider.step = step
+        self.dm_slider.value = value
 
     def _init_data(self):
         self.badchannels = set()
@@ -163,8 +196,13 @@ class CandidatePlot(param.Parameterized):
         return pn.Row(bkg_lc_mean, bkg_lc_std)
 
     def panel(self):
-        slider = pn.Param(self.param.dm, widgets={"dm": pn.widgets.FloatSlider})[0]
-        input_widget = pn.Param(self.param.dm, widgets={"dm": pn.widgets.FloatInput})[0]
+        dm_input = pn.Param(
+            self.param.dm, widgets={"dm": {"type": pn.widgets.FloatInput, "width": 150}}
+        )[0]
+        dm_zoom = pn.Param(
+            self.param.dm_zoom,
+            widgets={"dm_zoom": {"type": pn.widgets.Select, "width": 150}},
+        )[0]
         cmin = pn.Param(self.param.cmin, widgets={"cmin": pn.widgets.FloatInput})[0]
         cmax = pn.Param(self.param.cmax, widgets={"cmax": pn.widgets.FloatInput})[0]
         badchanlist = pn.Param(
@@ -210,8 +248,9 @@ class CandidatePlot(param.Parameterized):
         )
         dmsettings = pn.Card(
             pn.Row(
-                slider,
-                input_widget,
+                self.dm_slider,
+                dm_zoom,
+                dm_input,
             ),
             title="Dispersion measure",
             collapsed=False,
@@ -222,11 +261,8 @@ class CandidatePlot(param.Parameterized):
             ),
             pn.Column(
                 colorsettings,
-                # self.param.colormap,
-                # pn.Row(cmin, cmax),
                 badchannels,
                 dmsettings,
-                # pn.Row(slider, input_widget),
             ),
         )
         return layout
