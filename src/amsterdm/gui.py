@@ -171,7 +171,7 @@ class CandidatePlot(param.Parameterized):
         return lcplot
 
     @param.depends("update_plot", "cmin", "cmax", "colormap")
-    def plot_dynspec(self, x_range=None):
+    def plot_waterfall(self, x_range=None):
         ds = xr.Dataset(
             {"data": (["t", "channel"], self.stokesI)},
             coords={"channel": self.channels, "t": self.dt},
@@ -179,7 +179,7 @@ class CandidatePlot(param.Parameterized):
         vmin, vmax = np.nanpercentile(self.stokesI, (self.cmin * 100, self.cmax * 100))
         clim = (vmin, vmax)
 
-        dynspec = (
+        waterfallplot = (
             ds.hvplot(
                 colorbar=True,
                 clim=clim,
@@ -197,12 +197,12 @@ class CandidatePlot(param.Parameterized):
             )
         )
         if x_range:
-            dynspec = dynspec.opts(
+            waterfallplot = waterfallplot.opts(
                 xlim=x_range,
                 apply_ranges=False,
             )
 
-        return dynspec
+        return waterfallplot
 
     @param.depends("update_plot")
     def plot_bkg(self):
@@ -247,9 +247,9 @@ class CandidatePlot(param.Parameterized):
             ),
             collapsed=True,
         )
-        dynspec = hv.DynamicMap(self.plot_dynspec, streams=[self.range_stream])
-        self.tap.source = dynspec
-        image_plot = pn.Column(dynspec, datarange)
+        waterfallplot = hv.DynamicMap(self.plot_waterfall, streams=[self.range_stream])
+        self.tap.source = waterfallplot
+        image_plot = pn.Column(waterfallplot, datarange)
 
         lcplot = hv.DynamicMap(self.plot_lc, streams=[self.range_stream])
         plots = pn.Column(lcplot, pn.Row(bkgplots, image_plot))
