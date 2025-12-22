@@ -74,7 +74,7 @@ class Candidate:
         self,
         badchan: set | list | np.ndarray | None = None,
         dm: dict[str, float | np.ndarray] | None = None,
-        objrange: tuple[float, float] | None = None,
+        datarange: tuple[float, float] | None = None,
         trange: slice | EllipsisType | None = None,
         bkg_extra: bool = False,
     ):
@@ -89,7 +89,7 @@ class Candidate:
         badchan : set, list or array of channel indices to flag. The default of None
             means no flagging is done.
 
-        objrange : two-tuple of floating point fractions between 0 and 1
+        datarange : two-tuple of floating point fractions between 0 and 1
 
             Fractional range along the time axis, where the actual object
             is located. Data outside these columns is used for the
@@ -117,7 +117,7 @@ class Candidate:
         else:
             data = dict(xx=self.data[trange, 0, :], yy=self.data[trange, 1, :])
 
-        intensity = calc_intensity(data, badchan, dm, objrange, bkg_extra=bkg_extra)
+        intensity = calc_intensity(data, badchan, dm, datarange, bkg_extra=bkg_extra)
 
         return intensity
 

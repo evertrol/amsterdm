@@ -18,7 +18,7 @@ def mask2d(data, rowids):
 
 def correct_bandpass(
     data: np.ndarray | np.ma.MaskedArray,
-    objrange: tuple[float, float] = (0.33, 0.66),
+    datarange: tuple[float, float] = (0.3, 0.7),
     method: str = "median",
     extra: bool = False,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -30,7 +30,7 @@ def correct_bandpass(
     For each channel, a background level is estimated. This is done by
     selecting a set of time-sample columns outside of the columns that
     contain actual object of interest (the latter is given with
-    `objrange` as a range in fraction of the total time-sample
+    `datarange` as a range in fraction of the total time-sample
     columns), then calculating an average, using one of three
     `method`s (mean, median or mode), and the background standard
     deviation (noise). The average is subtracted from the full channel
@@ -43,7 +43,7 @@ def correct_bandpass(
         data that needs be normalised. Usually contains frequency on
         the y-axis and time samples on the x-axis.
 
-    objrange : two-tuple of floating point fractions between 0 and 1
+    datarange : two-tuple of floating point fractions between 0 and 1
 
         Fractional range along the time axis, where the actual object
         is located. Data outside these columns is used as the
@@ -72,7 +72,7 @@ def correct_bandpass(
         raise ValueError("method should be one of 'mean', 'median' or 'mode'")
 
     nsamp = data.shape[0]
-    bkgrange = (int(nsamp * objrange[0]), int(nsamp * objrange[1]))
+    bkgrange = (int(nsamp * datarange[0]), int(nsamp * datarange[1]))
 
     idx = np.arange(nsamp)
     idx_bg = [np.array([], dtype=int)]
@@ -164,7 +164,7 @@ def calc_intensity(
     data: dict[str, np.ndarray],
     badchan: set | list | np.ndarray | None = None,
     dm: dict[str, float | np.ndarray] | None = None,
-    objrange: tuple[float, float] | None = None,
+    datarange: tuple[float, float] | None = (0.3, 0.7),
     bkg_extra: bool = False,
 ):
     """Returns the Stokes I / intensity parameter from the xx and yy data
@@ -181,7 +181,7 @@ def calc_intensity(
     badchan : set, list or array of channel indices to flag. The default of None
         means no flagging is done.
 
-    objrange : two-tuple of floating point fractions between 0 and 1
+    datarange : two-tuple of floating point fractions between 0 and 1
 
         Fractional range along the time axis, where the actual object
         is located. Data outside these columns is used for the
@@ -216,9 +216,9 @@ def calc_intensity(
         yy = dedisperse(yy.T, dm["dm"], dm["freq"], dm["tsamp"]).T
 
     extra = {}
-    if objrange:
-        xx = correct_bandpass(xx, objrange, extra=bkg_extra)
-        yy = correct_bandpass(yy, objrange, extra=bkg_extra)
+    if datarange:
+        xx = correct_bandpass(xx, datarange, extra=bkg_extra)
+        yy = correct_bandpass(yy, datarange, extra=bkg_extra)
         if isinstance(xx, tuple):
             xx, xx_bkgmean, xx_bkgstd = xx
             yy, yy_bkgmean, yy_bkgstd = yy
