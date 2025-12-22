@@ -121,14 +121,14 @@ class CandidatePlot(param.Parameterized):
         self._calc_data()
 
     def _calc_data(self):
-        dm = {
-            "dm": self.dm,
-            "freq": self.candidate.freqs,
-            "tsamp": self.candidate.header["tsamp"],
-        }
+        # dm = {
+        #    "dm": self.dm,
+        #    "freq": self.candidate.freqs,
+        #    "tsamp": self.candidate.header["tsamp"],
+        # }
         self.stokesI, self.bkg = self.candidate.calc_intensity(
+            self.dm,
             {128 - value for value in self.badchannels},
-            dm,
             self.datarange,
             ...,
             bkg_extra=True,

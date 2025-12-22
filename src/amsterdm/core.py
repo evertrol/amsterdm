@@ -162,8 +162,8 @@ def dedisperse(
 
 def calc_intensity(
     data: dict[str, np.ndarray],
-    badchan: set | list | np.ndarray | None = None,
     dm: dict[str, float | np.ndarray] | None = None,
+    badchan: set | list | np.ndarray | None = None,
     datarange: tuple[float, float] | None = (0.3, 0.7),
     bkg_extra: bool = False,
 ):
@@ -189,16 +189,27 @@ def calc_intensity(
 
         The default of None indicates no bandpass correction is applied.
 
-    dm : dict with keys "dm", "freq" and "tsamp", containing the
-      disperson measure, the frequencies corresponding to the channels
-      and the timestamps corresponding to the time-samples.
+    dm : dict with keys "dm", "freq" and "tsamp"
 
-        Dedisperse the data for the given value. The default value of
-        None means no dedispersion is applied.
+         The `dm` dict should contain the disperson measure "dm", the
+         frequencies corresponding to the channels "freq" and the
+         timestamps corresponding to the time-samples "tsamp".
+
+         Dedisperse the data for the given value. The default value of
+         None means no dedispersion is applied.
+
+    bkg_extra: bool, default False
+
+        If `True`, returns an additional object, which is a dict
+        containing the mean and standard deviation of the background
+        along the channels; these are one-dimensional arrays
 
     Returns
     -------
-    Two-dimensional array with the Stokes intensity parameter.
+
+        Two-dimensional array with the Stokes intensity parameter. If
+        `bkg_extra` is `True`, returns a two-tuple of (two-dimensional
+        array, bkg_info dict).
 
     """
 

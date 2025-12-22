@@ -13,7 +13,7 @@ SOD = 60 * 60 * 24
 
 
 class Candidate:
-    """An FRB candidate object"""
+    """A candidate FRB object"""
 
     @classmethod
     def fromfile(cls, fobj: BufferedIOBase):
@@ -72,8 +72,8 @@ class Candidate:
 
     def calc_intensity(
         self,
-        badchan: set | list | np.ndarray | None = None,
         dm: dict[str, float | np.ndarray] | None = None,
+        badchan: set | list | np.ndarray | None = None,
         datarange: tuple[float, float] | None = None,
         trange: slice | EllipsisType | None = None,
         bkg_extra: bool = False,
@@ -97,18 +97,26 @@ class Candidate:
 
             The default of None indicates no bandpass correction is applied.
 
-        dm : dict with keys "dm", "freq" and "tsamp", containing the
-            disperson measure, the frequencies corresponding to the
-            channels and the timestamps corresponding to the
-            time-samples.
+        dm : float
+
+            Disperson measure
 
             Dedisperse the data for the given value. The default value of
             None means no dedispersion is applied.
 
+        bkg_extra: bool, default False
+
+            If `True`, returns an additional object, which is a dict
+            containing the mean and standard deviation of the background
+            along the channels; these are one-dimensional arrays
+
 
         Returns
         -------
-        Two-dimensional array with the Stokes intensity parameter.
+
+        Two-dimensional array with the Stokes intensity parameter. If
+        `bkg_extra` is `True`, returns a two-tuple of (two-dimensional
+        array, bkg_info dict).
 
         """
 
@@ -117,7 +125,9 @@ class Candidate:
         else:
             data = dict(xx=self.data[trange, 0, :], yy=self.data[trange, 1, :])
 
-        intensity = calc_intensity(data, badchan, dm, datarange, bkg_extra=bkg_extra)
+        if dm:
+            dm = {"dm": dm, "freq": self.freqs, "tsamp": self.header["tsamp"]}
+        intensity = calc_intensity(data, dm, badchan, datarange, bkg_extra=bkg_extra)
 
         return intensity
 
