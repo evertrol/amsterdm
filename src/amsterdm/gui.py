@@ -48,8 +48,11 @@ class CandidatePlot(param.Parameterized):
     datarange = param.Range((0.3, 0.6), bounds=(0, 1))
     badchanlist = param.String(default="", label="Bad channels")
     # Simple flag for cases where the plot method needs to be explicitly triggered
-    update_data = param.Boolean(default=False)
+    #update_data = param.Boolean(default=False)
     update_plot = param.Integer(default=0)
+    sample_start = param.Integer(default=0)
+    sample_end = param.Integer(default=0)
+    sample_reset = param.Action()
 
     def __init__(self, candidate, invert=True, width=800, **kwargs):
         super().__init__(**kwargs)
@@ -59,7 +62,10 @@ class CandidatePlot(param.Parameterized):
         self.invert = invert
         self.width = width
         self.range_stream = hv.streams.RangeX()
-
+        self.sample_end = self.candidate.data.shape[0]
+        self.param.sample_end.bounds = (1, self.candidate.data.shape[0])
+        #self.param.sample_reset.default = self._reset_range
+        
         self.dm_slider = pn.Param(
             self.param.dm, widgets={"dm": pn.widgets.FloatSlider}
         )[0]
@@ -72,10 +78,12 @@ class CandidatePlot(param.Parameterized):
                 "dm",
                 "datarange",
                 "badchanlist",
-                "update_data",
+                "update_plot",
                 "logimage",
                 "loglc",
                 "trunclc",
+                "sample_start",
+                "sample_end",
             ],
         )
         self.param.watch(self._update_dm_slider, ["dm_zoom"])
@@ -89,7 +97,7 @@ class CandidatePlot(param.Parameterized):
             self.badchannels.add(channel)
         self.badchanlist = ",".join(str(value) for value in sorted(self.badchannels))
 
-        self.update_data = True
+        #self.update_data = True
 
     def _update_dm_slider(self, event):
         """Update the DM slider range based on the DM slider zoom selector"""
@@ -111,6 +119,12 @@ class CandidatePlot(param.Parameterized):
         self.dm_slider.step = step
         self.dm_slider.value = value
 
+    @param.depends("sample_reset")
+    def _reset_range(self):
+        self.sample_start = 0
+        self.sample_end = self.candidate.data.shape[0]
+        self._update_data()
+        
     def _init_data(self):
         self.badchannels = set()
         self.channels = list(range(1, len(self.candidate.freqs) + 1))
@@ -121,16 +135,12 @@ class CandidatePlot(param.Parameterized):
         self._calc_data()
 
     def _calc_data(self):
-        # dm = {
-        #    "dm": self.dm,
-        #    "freq": self.candidate.freqs,
-        #    "tsamp": self.candidate.header["tsamp"],
-        # }
+        samplerange = slice(self.sample_start, self.sample_end)
         self.stokesI, self.bkg = self.candidate.calc_intensity(
             self.dm,
             {128 - value for value in self.badchannels},
             self.datarange,
-            ...,
+            samplerange=samplerange,
             bkg_extra=True,
         )
 
@@ -147,22 +157,28 @@ class CandidatePlot(param.Parameterized):
             self.stokesI = symlog10(self.stokesI)
 
     def _update_data(self, event):
-        self.update_data = (
-            False  # change back, so assignment in _on_tap triggers this method
-        )
+        print('update data:', event)
+        print(event.name)
+        if event.name in ('sample_start', 'sample_end'):
+            print('>>>', self.range_stream.x_range)
+            self.range_stream.reset()
+        #self.update_data = False
+        #    False  # change back, so assignment in _on_tap triggers this method
+        #)
 
         if self.badchanlist:
             self.badchannels = {int(value) for value in self.badchanlist.split(",")}
         else:
             self.badchannels = set()
-
         self._calc_data()
 
         self.update_plot += 1
 
     @param.depends("update_plot")
     def plot_lc(self, x_range=None):
-        lcplot = hv.Curve((self.dt, self.lc), "t", "I").opts(
+        samples = np.arange(self.sample_start, self.sample_end)
+        print('B>', samples)
+        lcplot = hv.Curve((samples, self.lc), "samples", "I").opts(
             width=self.width, framewise=True
         )
         if x_range:
@@ -172,10 +188,15 @@ class CandidatePlot(param.Parameterized):
 
     @param.depends("update_plot", "cmin", "cmax", "colormap")
     def plot_waterfall(self, x_range=None):
+        import sys
+        samples = np.arange(self.sample_start, self.sample_end)
+        print('A>', samples, self.stokesI.shape, len(samples))
         ds = xr.Dataset(
-            {"data": (["t", "channel"], self.stokesI)},
-            coords={"channel": self.channels, "t": self.dt},
+            {"data": (["samples", "channel"], self.stokesI)},
+            coords={"channel": self.channels, "samples": samples},
         )
+        print(ds)
+        print(ds['data'].shape, len(samples), x_range)
         vmin, vmax = np.nanpercentile(self.stokesI, (self.cmin * 100, self.cmax * 100))
         clim = (vmin, vmax)
 
@@ -187,7 +208,7 @@ class CandidatePlot(param.Parameterized):
                 rasterize=True,
                 dynamic=False,
             )
-            .redim(x="t")
+            .redim(x="samples")
             .opts(
                 width=self.width,
                 height=int(self.width / 1.5),
@@ -196,10 +217,12 @@ class CandidatePlot(param.Parameterized):
                 colorbar_opts={"formatter": PrintfTickFormatter(format="%.2f")},
             )
         )
+
+        print(f"{x_range = }")
         if x_range:
             waterfallplot = waterfallplot.opts(
                 xlim=x_range,
-                apply_ranges=False,
+#                apply_ranges=False,
             )
 
         return waterfallplot
@@ -225,6 +248,12 @@ class CandidatePlot(param.Parameterized):
         )[0]
         cmin = pn.Param(self.param.cmin, widgets={"cmin": pn.widgets.FloatInput})[0]
         cmax = pn.Param(self.param.cmax, widgets={"cmax": pn.widgets.FloatInput})[0]
+        sample_start = pn.Param(self.param.sample_start,
+                                widgets={"sample_start": {"type": pn.widgets.IntInput, "width": 100}})
+        sample_end = pn.Param(self.param.sample_end,
+                                widgets={"sample_end": {"type": pn.widgets.IntInput, "width": 100}})
+        print(f"{self.param.sample_reset.default = }")
+        samplerange = pn.Row(sample_start, sample_end, self.param.sample_reset)
         badchanlist = pn.Param(
             self.param.badchanlist,
             widgets={
@@ -257,6 +286,7 @@ class CandidatePlot(param.Parameterized):
             self.param.trunclc,
             widgets={"trunclc": {"type": pn.widgets.FloatInput, "width": 100}},
         )[0]
+
         lcsettings = pn.Card(
             pn.Row(
                 self.param.loglc,
@@ -275,10 +305,14 @@ class CandidatePlot(param.Parameterized):
             collapsed=True,
         )
 
+
         badchannels = pn.Card(
-            badchanlist,
-            title="Bad channels",
-            collapsed=True,
+            pn.Column(
+                samplerange,
+                badchanlist,
+            ),
+            title="Data & bad channels",
+            collapsed=False,
         )
         dmsettings = pn.Card(
             pn.Row(
