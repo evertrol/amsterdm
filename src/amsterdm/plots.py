@@ -139,10 +139,10 @@ def bowtie(
 
     # Calculate the extent for the imshow axes
     if isinstance(trange, EllipsisType):
-        extent = [0, len(xx), dm[1], dm[0]]
+        extent = [0, data.shape[1], dm[1], dm[0]]
     else:
         start = trange.start or 0
-        stop = trange.stop if trange.stop else len(xx)
+        stop = trange.stop if trange.stop else data.shape[1]
         extent = [start, stop, dm[1], dm[0]]
 
     if not ax:
