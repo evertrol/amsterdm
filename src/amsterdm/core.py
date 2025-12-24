@@ -7,7 +7,14 @@ import numpy as np
 DMCONST = 1.0 / 2.41e-4
 
 
-__all__ = ["mask2d", "measure_background", "correct_bandpass", "dedisperse", "calc_intensity", "bowtie"]
+__all__ = [
+    "mask2d",
+    "measure_background",
+    "correct_bandpass",
+    "dedisperse",
+    "calc_intensity",
+    "bowtie",
+]
 
 
 def mask2d(data, rowids):
@@ -284,8 +291,8 @@ def calc_intensity(
         yy_bkgmean, yy_bkgstd = measure_background(yy, datarange)
 
         # Bandpass correction
-        xx_sub = (xx - xx_bkgmean[None, :]) / xx_bkgstd[None, :]
-        yy_sub = (yy - yy_bkgmean[None, :]) / yy_bkgstd[None, :]
+        xx = (xx - xx_bkgmean[None, :]) / xx_bkgstd[None, :]
+        yy = (yy - yy_bkgmean[None, :]) / yy_bkgstd[None, :]
 
         if bkg_extra:
             extra["mean"] = xx_bkgmean + yy_bkgmean
