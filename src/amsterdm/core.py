@@ -1,5 +1,6 @@
 import logging
 
+from astropy import modeling
 import numpy as np
 
 from .constants import DEFAULT_BACKGROUND_RANGE, DMCONST
@@ -7,6 +8,11 @@ from .utils import FInterval
 
 
 __all__ = [
+    "downsample",
+    "upsample",
+    "findpeaklc",
+    "findrangelc",
+    "fit_ratios",
     "calc_background",
     "correct_bandpass",
     "dedisperse",
@@ -262,6 +268,36 @@ def findrangelc(
     if bkg_extra:
         return sections, (bkgval, bkgstd)
     return sections
+
+
+def fit_ratios(dms, ratios):
+    """Fit S/N ratios to a Gaussian curve for a given set of DM values
+
+    Provides a simple Gaussian fit to the ratios
+
+    Parameters
+    ----------
+    dms: array of dispersion measure values
+
+    ratios: array of signal-to-noise values matching the `dms`
+
+    Returns
+    -------
+    a 3-tuple of fitted amplitude, mean and standard deviation
+
+    """
+
+    logger.info("Fitting S/N ratios")
+    mean = (dms[-1] + dms[0]) / 2  # assume peak in center of the interval
+    stddev = (dms[-1] - dms[0]) / 6  # assume a roughly 2 x 3-sigma total width
+    model = modeling.models.Gaussian1D(amplitude=max(ratios), mean=mean, stddev=stddev)
+    fitter = modeling.fitting.LevMarLSQFitter()
+    fitted_model = fitter(model, dms, ratios)
+    ampl, mean, stddev = fitted_model.parameters
+    logger.info(
+        "Fitted parameters: ampl, mean, stddev = %f, %f, %f", ampl, mean, stddev
+    )
+    return ampl, mean, stddev
 
 
 def calc_background(
