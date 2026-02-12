@@ -18,11 +18,11 @@ def disperse(
     # round to nearest integer
     bin_shift = np.rint((time_shift / tsamp)).astype(np.int64)
     # checks
-    assert len(bin_shift) == data.shape[0]
+    assert len(bin_shift) == data.shape[0] == newdata.shape[0]
 
     # dedisperse by rolling the channels forward
-    for i, bs in enumerate(bin_shift):
-        newdata[i, :] = np.roll(data[i, :], bs)
+    for i, shift in enumerate(bin_shift):
+        newdata[i, :] = np.roll(data[i, :], shift)
 
     return newdata
 
@@ -31,8 +31,8 @@ def simulate(
     peaks,
     t0s,
     widths,
-    dm,
-    dmreffreq,
+    dm: float | list[float],
+    dmreffreq: float,
     nsamples,
     nchannels,
     freq0,
@@ -53,6 +53,8 @@ def simulate(
         raise ValueError(
             "'xy' should be None, an single value, or a 1- or 2-element list or tuple"
         )
+    dms = [dm] * len(peaks) if isinstance(dm, (float, int)) else dm
+
     channels = np.arange(nchannels)
     freqs = channels * dfreq + freq0
     times = np.arange(nsamples) * tsamp + time0
@@ -91,15 +93,14 @@ def simulate(
         fluxes.append(flux)
 
     # Add the individual bursts to the noise
-    # Do this independently for each polarization channel,
-    # and apply the bandpass
-    for flux in fluxes:
+    # For each polarization channel independently,
+    # apply the bandpass, then disperse each burst
+    # Finally, add the the result to the relevant channel.
+    for flux, dm in zip(fluxes, dms):
         for i, fxy in enumerate(xy):
-            dynspec[:, i, :] += flux[:, None] * fxy * bandpass[None, :]
-        # The remaining two polarization channels will contain only noise
-
-    for i in range(len(xy)):
-        dynspec[:, i, :] = disperse(dynspec[:, i, :].T, dm, dmreffreq, freqs, tsamp).T
+            waterfall = flux[:, None] * fxy * bandpass[None, :]
+            waterfall = disperse(waterfall.T, dm, dmreffreq, freqs, tsamp).T
+            dynspec[:, i, :] += waterfall
 
     # remove line below; only to silence the linter
     return dynspec, times, freqs
