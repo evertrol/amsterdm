@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+"""Run examples/simulate.py to create an input file for this example"""
+
 import logging
 from pathlib import Path
 
