@@ -48,8 +48,9 @@ def main(path, dm, plots, background, badchannels=None, loglevel=logging.INFO):
             or "grid" in plots
         ):
             logger.info("Creating light curve")
-            lc = (burst.lightcurve(dm, badchannels, backgroundrange=background),)
+            lc = burst.lightcurve(dm, badchannels, backgroundrange=background)
             sections = core.findrangelc(lc, kappa=10)
+            logger.info("Determining sections: %s", sections)
 
         if "all" in plots or "waterfall" in plots or "dynspec" in plots:
             ax = dmplot.waterfall(burst, dm, badchannels, backgroundrange=background)
@@ -102,7 +103,12 @@ def main(path, dm, plots, background, badchannels=None, loglevel=logging.INFO):
                 section = (max(0, section[0] - 1000), min(nsamples, section[1] + 1000))
                 # convert to fractions
                 section = (section[0] / nsamples, section[1] / nsamples)
-            dms = np.linspace(dm - 0.15, dm + 0.15, 50)
+                delta = section[1] - section[0]
+                section = (
+                    max(section[0] - delta / 2, 0),
+                    min(section[1] + delta / 2, nsamples),
+                )
+            dms = np.linspace(dm - 1.1, dm + 1.1, 50)
             peak = True
             ax = dmplot.signal2noise(
                 burst,
@@ -111,6 +117,7 @@ def main(path, dm, plots, background, badchannels=None, loglevel=logging.INFO):
                 backgroundrange=background,
                 peak=peak,
                 peak_interval=section,
+                fit=True,
             )
             if peak:
                 ax.set_title(f"Peak signal to noise for {path.stem}")
@@ -129,7 +136,7 @@ def main(path, dm, plots, background, badchannels=None, loglevel=logging.INFO):
                 section = (max(0, section[0] - 1000), min(nsamples, section[1] + 1000))
                 # convert to fractions
                 section = (section[0] / nsamples, section[1] / nsamples)
-            dms = np.linspace(dm - 0.1, dm + 0.1, 50)
+            dms = np.linspace(dm - 1.1, dm + 1.1, 50)
             peak = True
             ax = dmplot.grid(
                 burst,
