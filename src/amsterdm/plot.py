@@ -11,6 +11,7 @@ figures, one will likely want to create their own figures manually.
 """
 
 from contextlib import suppress
+import logging
 from types import EllipsisType
 
 from astropy.time import Time
@@ -22,7 +23,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from .burst import Burst
 from .constants import DEFAULT_BACKGROUND_RANGE, DMCONST
+from . import core
 from .utils import FInterval, symlog
+
+
+logger = logging.getLogger(__package__)
 
 
 def waterfall(
@@ -59,7 +64,6 @@ def waterfall(
     stokesI = burst.create_dynspectrum(
         dm, badchannels, backgroundrange, bkg_method=bkg_method
     )
-
     stokesI = np.ma.filled(stokesI, np.nan)
 
     if logscale:
@@ -327,6 +331,7 @@ def signal2noise(
     bkg_method: str = "median",
     peak: bool = True,
     peak_interval: FInterval | None = None,
+    fit: bool = False,
     ax=None,
     **options,
 ):
@@ -339,6 +344,7 @@ def signal2noise(
         peak=peak,
         peak_interval=peak_interval,
     )
+
     if not ax:
         figure = Figure(figsize=(12, 8))
         FigureCanvas(figure)
@@ -352,6 +358,54 @@ def signal2noise(
         ratios = symlog(ratios)
 
     ax.plot(dms, ratios, "o")
+
+    if fit:
+        ampl, mean, stddev = core.fit_ratios(dms, ratios)
+        x = np.linspace(dms[0], dms[-1])
+        y = ampl * np.exp(-0.5 * (x - mean) ** 2 / stddev**2)
+        ax.plot(x, y, "-")
+        ax.hlines(
+            [ampl, ampl - 1],
+            0,
+            1,
+            transform=ax.get_yaxis_transform(),
+            alpha=0.2,
+            color="k",
+            linestyle="--",
+        )
+        cuts = [
+            mean - stddev * np.sqrt(-2 * np.log((ampl - 1) / ampl)),
+            mean,
+            mean + stddev * np.sqrt(-2 * np.log((ampl - 1) / ampl)),
+        ]
+        ax.vlines(
+            cuts,
+            0,
+            1,
+            transform=ax.get_xaxis_transform(),
+            alpha=0.2,
+            color="k",
+            linestyle="--",
+        )
+        for cut in cuts:
+            ax.text(
+                cut,
+                min(ratios),
+                f"{cut:.5f}",
+                ha="left",
+                va="bottom",
+                rotation="vertical",
+            )
+        dcut = (cuts[2] - cuts[0]) / 2
+        ax.text(
+            0.98,
+            0.98,
+            rf"DM = {cuts[1]:.5f} $\pm$ {dcut:.5f}",
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=14,
+        )
 
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
