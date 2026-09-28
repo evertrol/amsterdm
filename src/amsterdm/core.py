@@ -62,7 +62,7 @@ from astropy.units import Quantity
 import numpy as np
 
 from .constants import DEFAULT_BACKGROUND_RANGE, DMCONST, DMUNIT, Array
-from .utils import FInterval, QInterval
+from .utils import FInterval, QInterval, ensure_interval_list
 
 
 __all__ = [
@@ -1493,10 +1493,21 @@ def bowtie(
             "`freqs` length does not match the last axis of the data array"
         )
 
-    data, poltype = _format_data(data)
-    data = np.squeeze(data)
-    if data.ndim != 2:
-        raise ValueError("data contains multiple polarization channels")
+    # data, poltype = _format_data(data)
+    # print(f"{poltype = }")
+    # data = np.squeeze(data)
+    # if data.ndim != 2:
+    #    raise ValueError("data contains multiple polarization channels")
+    # if data.ndim == 2:
+    #    xx = np.ma.array(data)
+    # elif data.shape[1] != 2:
+    #    if poltype == "iquv":
+    #        xx = np.ma.array(data[:, 0, :])
+    #    else:
+    #        raise ValueError("second (polarization) dimension has incorrect size")
+    # else:
+    #    xx = np.ma.array(data[:, 0, :])
+    #    yy = np.ma.array(data[:, 1, :])
 
     (tsamp, freqs, reffreq, _, dminterval) = ensure_quantities(
         tsamp, freqs, reffreq, None, dminterval
@@ -1651,7 +1662,7 @@ def signal2noise(
     # Calculate the background of the light curve
     # using the `backgroundrange`
     if backgroundrange:
-        for bkgrange in backgroundrange:
+        for bkgrange in ensure_interval_list(backgroundrange):
             low = int(nsamp * bkgrange[0] + 0.5)
             high = int(nsamp * bkgrange[1] + 0.5)
             idx_bkg.append(np.arange(low, high))
